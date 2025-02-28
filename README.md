@@ -1,6 +1,6 @@
 # LLM Zsh Plugin
 
-A Zsh plugin providing command completion for the [LLM CLI tool](https://llm.datasette.io/) by [Simon Wilson](https://simonwillison.net/).
+A Zsh plugin providing command completion for the [LLM CLI tool](https://llm.datasette.io/) by [Simon Willison](https://simonwillison.net/).
 
 ## Installation
 
