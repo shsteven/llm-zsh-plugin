@@ -1,0 +1,215 @@
+#compdef llm
+
+_llm() {
+    local -a commands
+    local state
+
+    # Helper functions
+    _llm_get_models() {
+        local -a models
+        models=(${(f)"$(llm models list 2>/dev/null | awk -F':' '{ split($2, a, " "); print a[1] }'| sort -u)"})
+        _describe 'models' models
+    }
+
+    _llm_output_formats() {
+        local -a formats
+        formats=('json' 'blob' 'base64' 'hex')
+        _describe 'formats' formats
+    }
+
+    _llm_file_formats() {
+        local -a formats
+        formats=('json' 'csv' 'tsv' 'nl')
+        _describe 'formats' formats
+    }
+
+    _arguments -C \
+        '1: :->command' \
+        '*:: :->args'
+
+    case $state in
+        command)
+            commands=(
+                'prompt:Execute a prompt'
+                'chat:Hold an ongoing chat'
+                'keys:Manage stored API keys'
+                'logs:View and manage logs'
+                'models:Manage available models'
+                'templates:Manage stored templates'
+                'collections:Manage embeddings collections'
+                'embed:Embed text and return results'
+                'embed-multi:Batch embed multiple texts'
+                'embed-models:Manage available embedding models'
+                'similar:Find similar items'
+                'install:Install packages'
+                'uninstall:Uninstall packages'
+                'plugins:List installed plugins'
+                'openai:Interact with OpenAI API'
+                'aliases:Manage model aliases'
+            )
+            _describe -t commands 'llm commands' commands
+            ;;
+        args)
+            case $words[1] in
+                prompt)
+                    _arguments \
+                        '-s[System prompt]:system prompt' \
+                        "*-m[Model]:model:_llm_get_models" \
+                        '-a[Attachment]:file:_files' \
+                        '--at[Attachment Type]:type and mimetype' \
+                        '-o[Options]:options' \
+                        '-t[Template]:template' \
+                        '-p[Template Params]:params' \
+                        '--no-stream[Disable streaming]' \
+                        '-n[Do not log to database]' \
+                        '--log[Log prompt and response]' \
+                        '-c[Continue last conversation]' \
+                        '--cid[Conversation ID]:id' \
+                        '--key[API Key]:key' \
+                        '--save[Save as template]:name' \
+                        '--async[Run asynchronously]' \
+                        '-u[Show token usage]' \
+                        '-x[Extract first code block]' \
+                        '--xl[Extract last code block]' \
+                        '--help[Show help message]'
+                    ;;
+                chat)
+                    _arguments \
+                        '-s[System prompt]:system prompt' \
+                        "*-m[Model]:model:_llm_get_models" \
+                        '-c[Continue last conversation]' \
+                        '--cid[Conversation ID]:id' \
+                        '-t[Template]:template' \
+                        '-p[Template Params]:params' \
+                        '-o[Options]:options' \
+                        '--no-stream[Disable streaming]' \
+                        '--key[API Key]:key' \
+                        '--help[Show help message]'
+                    ;;
+                keys)
+                    local -a key_commands=(
+                        'list:List stored API keys'
+                        'get:Get a stored API key'
+                        'set:Set an API key'
+                        'path:Show keys.json location'
+                    )
+                    if (( CURRENT == 2 )); then
+                        _describe -t commands 'keys commands' key_commands
+                    else
+                        case $words[2] in
+                            set)
+                                _arguments \
+                                    '--value[Value to set]:value' \
+                                    '--help[Show help message]'
+                                ;;
+                        esac
+                    fi
+                    ;;
+                logs)
+                    local -a log_commands=(
+                        'list:Show recent logs'
+                        'on:Enable logging'
+                        'off:Disable logging'
+                        'status:Show logging status'
+                        'path:Show logs.db path'
+                    )
+                    if (( CURRENT == 2 )); then
+                        _describe -t commands 'log commands' log_commands
+                    else
+                        case $words[2] in
+                            list)
+                                _arguments \
+                                    '-n[Number of entries]:count' \
+                                    '-p[Path to log database]:file:_files' \
+                                    '-m[Filter by model]:model' \
+                                    '-q[Search query]:query' \
+                                    '-t[Truncate output]' \
+                                    '-s[Shorter output]' \
+                                    '-u[Include token usage]' \
+                                    '-r[Just output last response]' \
+                                    '-x[Extract first code block]' \
+                                    '--xl[Extract last code block]' \
+                                    '-c[Show current conversation logs]' \
+                                    '--cid[Show logs for conversation]:id' \
+                                    '--json[Output as JSON]'
+                                ;;
+                        esac
+                    fi
+                    ;;
+                embed)
+                    _arguments \
+                        '-i[Input file]:file:_files' \
+                        '-m[Model]:model' \
+                        '--store[Store text in database]' \
+                        '-d[Database file]:file:_files' \
+                        '-c[Content to embed]:content' \
+                        '--binary[Treat input as binary]' \
+                        '--metadata[JSON metadata]:json' \
+                        '-f[Output format]:format:_llm_output_formats'
+                    ;;
+                embed-multi)
+                    _arguments \
+                        '--format[Input format]:format:_llm_file_formats' \
+                        '--files[Embed files]:directory:_files -/' \
+                        '--encoding[File encoding]:encoding' \
+                        '--binary[Treat files as binary]' \
+                        '--sql[SQL query]:query' \
+                        '--attach[Attach database]:file:_files' \
+                        '--batch-size[Batch size]:size' \
+                        '--prefix[ID prefix]:prefix' \
+                        '-m[Model]:model' \
+                        '--prepend[Prepend to content]:text' \
+                        '--store[Store text in database]' \
+                        '-d[Database file]:file:_files'
+                    ;;
+                embed-models)
+                    local -a model_commands=(
+                        'list:List available embedding models'
+                        'default:Show or set default model'
+                    )
+                    if (( CURRENT == 2 )); then
+                        _describe -t commands 'embed-model commands' model_commands
+                    else
+                        case $words[2] in
+                            list)
+                                _arguments '-q[Search query]:query'
+                                ;;
+                            default)
+                                _arguments '--remove-default[Reset to no default]'
+                                ;;
+                        esac
+                    fi
+                    ;;
+                templates)
+                    local -a template_commands=(
+                        'list:List available prompt templates'
+                        'edit:Edit template using default $EDITOR'
+                        'show:Show the specified prompt template'
+                        'path:Output the path to templates directory'
+                    )
+                    if (( CURRENT == 2 )); then
+                        _describe -t commands 'template commands' template_commands
+                    else
+                        case $words[2] in
+                            edit|show)
+                                _arguments '*:template name'
+                                ;;
+                        esac
+                    fi
+                    ;;
+                aliases)
+                    local -a alias_commands=(
+                        'list:List model aliases'
+                        'set:Set a model alias'
+                        'remove:Remove a model alias'
+                        'path:Show alias file path'
+                    )
+                    _describe -t commands 'alias commands' alias_commands
+                    ;;
+            esac
+            ;;
+    esac
+}
+
+_llm "$@"
+
