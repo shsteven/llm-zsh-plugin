@@ -6,7 +6,6 @@
 [![Zsh 5.0+](https://img.shields.io/badge/zsh-%3E%3D5.0-blue?style=flat-square)](https://www.zsh.org/)
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/simonw/llm/main/docs/llm-logo.png" width="200" alt="LLM CLI Logo">
   <p><em>Supercharge your shell with LLM command completion 🚀</em></p>
 </div>
 
