@@ -1,0 +1,15 @@
+> llm models list
+Output example in `models-list.txt`
+
+> llm fragments list --aliases
+Output example in `fragments-aliases.txt`
+
+> llm -m gemini "hello" <--- sends the text "hello" to the gemini llm
+
+> llm -f jina-meta-prompt -m gemini "hello" <--- pulls in the fragment as context, then sends "hello" to Gemini llm
+
+Here's where autocompletion should happen:
+
+llm -m <tab> <---- should autocoplete model name or alias
+
+llm -f <tab> <---- should autocomplete either fragment alias, or fragment alias

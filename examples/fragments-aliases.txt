@@ -1,0 +1,6 @@
+- hash: 58fc2d10f5afb444637224074c7a2b78ac9bed829f49f06d929d74bcbc328a5f
+  aliases:
+  - jina-meta-prompt
+  datetime_utc: '2025-04-18 12:56:42'
+  source: https://docs.jina.ai
+  content: You are an AI engineer designed to help users use Jina AI Search Foundation API's for their speci...
