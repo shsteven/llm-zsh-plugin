@@ -30,7 +30,12 @@ _llm() {
     _llm_fetch_list() {
         local cmd="$1" field="$2" desc="$3"
         local -a items
-        items=(${(f)"$(llm $cmd 2>/dev/null | awk -F': ' '{ if ($'$field') print $'$field' }' | sort -u)"})
+        # Use simple ':' separator, trim whitespace from the target field, and print if not empty.
+        # Add < /dev/null to explicitly make stdin non-interactive for the llm command.
+        items=(${(f)"$(llm $cmd < /dev/null 2>/dev/null | awk -F':' -v field="$field" '{
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", $field); # Trim leading/trailing whitespace from target field
+            if ($field != "") print $field
+        }' | sort -u)"})
         [[ -n $items ]] && _describe "$desc" items || _message "No $desc available"
     }
 
@@ -69,7 +74,36 @@ _llm() {
     }
 
     # Specific helpers for dynamic completions (keep others, remove old _llm_get_models)
-    _llm_get_templates() { _llm_fetch_list "templates list" 1 "templates"; }
+    # Helper function to get templates with descriptions
+    _llm_get_templates() {
+        local -a templates
+        # Execute command, parse "name : content" lines
+        templates=(${(f)"$(llm templates list 2>/dev/null | awk '
+            BEGIN { FS = " : " } # Split by " : "
+            NF >= 2 { # Ensure there are at least two fields
+                name = $1
+                # Reconstruct content from the second field onwards
+                content = ""
+                for (i = 2; i <= NF; i++) {
+                    content = content (i > 2 ? FS : "") $i
+                }
+                gsub(/^[[:space:]]+|[[:space:]]+$/, "", content) # Trim whitespace
+
+                # Truncate content for description
+                max_len=60
+                if (length(content) > max_len) {
+                    description = substr(content, 1, max_len) "..."
+                } else {
+                    description = content
+                }
+                # Output in "value:description" format for _describe
+                # Escape colons in the name itself to avoid confusing _describe
+                gsub(/:/, "\\:", name)
+                print name ":" description
+            }
+        ')"})
+        _describe 'templates' templates && ret=0 || ret=1
+    }
     _llm_get_collections() { _llm_fetch_list "collections list" 1 "collections"; }
     _llm_get_schemas() { _llm_fetch_list "schemas list" 1 "schemas"; }
     _llm_output_formats() {
@@ -114,6 +148,7 @@ _llm() {
         $common_options \
         '-m+[Model]:model:_llm_complete_models' \
         '-f+[Fragment]:fragment:_llm_get_fragment_aliases' \
+        '-t+[Template]:template:_llm_get_templates' \
         '1: :->command' \
         '*:: :->args' && ret=0
  
