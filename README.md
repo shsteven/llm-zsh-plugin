@@ -29,7 +29,7 @@ A Zsh plugin providing command completion for the [LLM CLI tool](https://llm.dat
 
 1. Clone this repository:
 ```bash
-git clone https://github.com/eliyastein/llm-zsh-plugin ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/llm
+git clone https://github.com/shsteven/llm-zsh-plugin ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/llm
 ```
 
 2. Add `llm` to your plugins in `~/.zshrc`:
@@ -46,7 +46,7 @@ source ~/.zshrc
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/eliyastein/llm-zsh-plugin ~/.zsh/llm-zsh-plugin
+git clone https://github.com/shsteven/llm-zsh-plugin ~/.zsh/llm-zsh-plugin
 ```
 
 2. Source the plugin in your `~/.zshrc`:
