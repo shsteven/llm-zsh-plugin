@@ -34,8 +34,41 @@ _llm() {
         [[ -n $items ]] && _describe "$desc" items || _message "No $desc available"
     }
 
-    # Specific helpers for dynamic completions
-    _llm_get_models() { _llm_fetch_list "models list" 2 "models"; }
+    # Helper function to fetch raw model IDs and aliases
+    _llm_get_models_raw() {
+        llm models list 2>/dev/null | awk '
+            BEGIN { FS = ": " }
+            /aliases:/ {
+                model_id = $2
+                sub(/ \(.*/, "", model_id); # Remove description like (local)
+                print model_id
+                # Use match() and substr() for BSD awk compatibility
+                if (match($0, /\(aliases: ([^)]+)\)/)) {
+                    aliases_str = substr($0, RSTART + 9, RLENGTH - 10) # Extract "alias1, alias2"
+                    gsub(/, */, "\n", aliases_str) # Replace commas with newlines
+                    print aliases_str
+                }
+            }
+            !/aliases:/ {
+                # Handle lines without aliases (just model ID)
+                if ($2) print $2
+            }
+        ' | sort -u
+    }
+
+    # Helper function to provide model completions using cache
+    _llm_complete_models() {
+        # Ensure cache is populated if empty
+        # Use (( ! ${#_cached_models[@]} )) to check if array is empty
+        if (( ! ${#_cached_models[@]} )); then
+            # Populate cache using the raw fetch function
+            _cached_models=(${(f)"$(_llm_get_models_raw)"})
+        fi
+        # Use the cached list for completion
+        _describe 'models' _cached_models && ret=0 || ret=1
+    }
+
+    # Specific helpers for dynamic completions (keep others, remove old _llm_get_models)
     _llm_get_templates() { _llm_fetch_list "templates list" 1 "templates"; }
     _llm_get_collections() { _llm_fetch_list "collections list" 1 "collections"; }
     _llm_get_schemas() { _llm_fetch_list "schemas list" 1 "schemas"; }
@@ -48,16 +81,42 @@ _llm() {
         _describe 'file formats' formats
     }
 
+    # Helper function to get fragment aliases
+    _llm_get_fragment_aliases() {
+        local -a aliases
+        # Execute command, find lines starting with "- " under "aliases:", extract the alias name
+        aliases=(${(f)"$(llm fragments list --aliases 2>/dev/null | awk '
+            /^  aliases:/ { in_aliases=1; next } # Set flag when aliases section starts
+            in_aliases && /^[[:space:]]+- / { # If in aliases section and line starts with whitespace then "- "
+                # Extract the part after "- "
+                sub(/^[[:space:]]+- /, ""); # Remove the leading "  - " part
+                print $0; # Print the remaining part (the alias)
+                # If multiple aliases per fragment are possible, keep processing
+                # If only one alias per fragment, uncomment next line:
+                # in_aliases=0;
+                next
+            }
+            # Reset flag if we are in aliases section but line doesnt match alias format,
+            # OR if a new fragment starts
+            (in_aliases && !/^[[:space:]]+- /) || /^- hash:/ {
+                in_aliases=0
+            }
+        ')"})
+        _describe 'fragment aliases' aliases && ret=0 || ret=1
+    }
+ 
     # Cache models for performance
+    # Declare the cache array globally within the main function scope
     local -a _cached_models
-    if [[ -z ${_cached_models[(I)*]} ]]; then
-        _cached_models=(${(f)"$(llm models list 2>/dev/null | awk -F': ' '{ if ($2) print $2 }' | sort -u)"})
-    fi
+    # Cache is populated on first call to _llm_complete_models if empty
 
     _arguments -C \
+        $common_options \
+        '-m+[Model]:model:_llm_complete_models' \
+        '-f+[Fragment]:fragment:_llm_get_fragment_aliases' \
         '1: :->command' \
         '*:: :->args' && ret=0
-
+ 
     case $state in
         command)
             local -a commands=(
@@ -87,7 +146,7 @@ _llm() {
                 prompt)
                     _llm_handle_options \
                         '-s+[System prompt]:system prompt:_default' \
-                        '-m+[Model]:model:_llm_get_models' \
+                        '-m+[Model]:model:_llm_complete_models' \
                         '-a+[Attachment]:attachment:_files' \
                         '--at+[Attachment Type]:type:_default' \
                         '-o+[Options]:options:_default' \
@@ -108,7 +167,7 @@ _llm() {
                 chat)
                     _llm_handle_options \
                         '-s+[System prompt]:system prompt:_default' \
-                        '-m+[Model]:model:_llm_get_models' \
+                        '-m+[Model]:model:_llm_complete_models' \
                         '-c[Continue last conversation]' \
                         '--cid+[Conversation ID]:id:_default' \
                         '-t+[Template]:template:_llm_get_templates' \
@@ -150,7 +209,7 @@ _llm() {
                                 _llm_handle_options \
                                     '-n+[Number of entries]:number:_default' \
                                     '-p+[Path to log database]:path:_files' \
-                                    '-m+[Filter by model]:model:_llm_get_models' \
+                                    '-m+[Filter by model]:model:_llm_complete_models' \
                                     '-q+[Search query]:query:_default' \
                                     '-t[Truncate output]' \
                                     '-s[Shorter output]' \
@@ -178,17 +237,17 @@ _llm() {
                         _llm_describe_subcommands $subcommands
                     else
                         case $words[2] in
-                            list) _llm_handle_options '1:model:_llm_get_models' '-q+[Search query]:query:_default' '--json[Output as JSON]' ;;
+                            list) _llm_handle_options '1:model:_llm_complete_models' '-q+[Search query]:query:_default' '--json[Output as JSON]' ;;
                             add) _llm_handle_options '1:model name:_default' '2:model type:_default' '3:model options:_default' ;;
-                            remove) _llm_handle_options '1:model:_llm_get_models' ;;
-                            schema|options) _llm_handle_options '1:model:_llm_get_models' ;;
+                            remove) _llm_handle_options '1:model:_llm_complete_models' ;;
+                            schema|options) _llm_handle_options '1:model:_llm_complete_models' ;;
                         esac
                     fi
                     ;;
                 embed)
                     _llm_handle_options \
                         '-i+[Input file]:file:_files' \
-                        '-m+[Model]:model:_llm_get_models' \
+                        '-m+[Model]:model:_llm_complete_models' \
                         '--store[Store text in database]' \
                         '-d+[Database file]:database:_files' \
                         '-c+[Content to embed]:content:_default' \
@@ -206,7 +265,7 @@ _llm() {
                         '--attach+[Attach database]:database:_files' \
                         '--batch-size+[Batch size]:size:_default' \
                         '--prefix+[ID prefix]:prefix:_default' \
-                        '-m+[Model]:model:_llm_get_models' \
+                        '-m+[Model]:model:_llm_complete_models' \
                         '--prepend+[Prepend to content]:content:_default' \
                         '--store[Store text in database]' \
                         '-d+[Database file]:database:_files'
@@ -253,7 +312,7 @@ _llm() {
                     else
                         case $words[2] in
                             list|path) _llm_handle_options ;;
-                            set) _llm_handle_options '1:alias:_default' '2:model:_llm_get_models' ;;
+                            set) _llm_handle_options '1:alias:_default' '2:model:_llm_complete_models' ;;
                             remove) _llm_handle_options '1:alias:_default' ;;
                         esac
                     fi
@@ -277,8 +336,8 @@ _llm() {
                                     '--json[Output as JSON]'
                                 ;;
                             set) _llm_handle_options '1:alias:_default' '2:fragment path or input:_files' ;;
-                            show) _llm_handle_options '1:alias or hash:_default' ;;
-                            remove) _llm_handle_options '1:alias:_default' ;;
+                            show) _llm_handle_options '1:alias or hash:_llm_get_fragment_aliases' ;;
+                            remove) _llm_handle_options '1:alias:_llm_get_fragment_aliases' ;;
                         esac
                     fi
                     ;;
@@ -326,7 +385,7 @@ _llm() {
                         '-i+[Input file]:file:_files' \
                         '-n+[Number of results]:number:_default' \
                         '--binary[Treat input as binary]' \
-                        '-m+[Model]:model:_llm_get_models' \
+                        '-m+[Model]:model:_llm_complete_models' \
                         '--metadata-sql+[SQL for metadata filter]:sql:_default' \
                         '--ids-only[Only return IDs]' \
                         '--json[Output as JSON]'
